@@ -218,7 +218,7 @@ textarea.copy{width:100%;min-height:160px;font-family:var(--mono);font-size:13px
 <script>
 (function(){
 const STATUSES=[
-  ["","— Not accounted"],["present","Present"],["appt","Appt"],["pass","Pass"],["leave","Leave"],
+  ["","— Select"],["present","Present"],["appt","Appt"],["pass","Pass"],["leave","Leave"],
   ["detail","Detail"],["late","Late"],["other","Other…"]];
 const LABEL={present:"Present",appt:"Appt",pass:"Pass",leave:"Leave",detail:"Detail",late:"Late",other:"Other"};
 const COLOR={present:"var(--present)",appt:"var(--appt)",pass:"var(--leave)",leave:"var(--leave)",detail:"var(--detail)",late:"var(--warn)",other:"var(--other)"};
@@ -242,6 +242,7 @@ let roster=null;            // {unit, sections:[{name, soldiers:[{id,rank,name}]
 let today=keyOf(new Date());
 let dayRemote=null, dayExists=false, pending=null, flushTimer=null, chain=Promise.resolve(), unsubDay=null;
 let curForm=null;           // formation id being shown
+const localForms=new Set();  // formations started on this device (stay selected while saving)
 let days=[];                // report list
 let selDay=null, selForm=null;
 let view="formation";
@@ -266,6 +267,7 @@ function queue(patch,delay){
 }
 function flush(){
   const p=pending;pending=null;if(!p)return;
+  if(p.date===today)dayRemote=merge(dayRemote||{},p);
   chain=chain.then(async()=>{
     const ref=db.doc("days/"+p.date);
     if(!dayExists||p.date!==today){
@@ -293,7 +295,7 @@ function subscribeDay(){
 /* ---------- formation actions ---------- */
 function activeForm(){
   const fs=formations(dayState());
-  if(curForm&&fs.find(f=>f.id===curForm))return curForm;
+  if(curForm&&(fs.find(f=>f.id===curForm)||localForms.has(curForm)))return curForm;
   if(curForm==="morning"&&!fs.length)return "morning";
   curForm=fs.length?fs[fs.length-1].id:"morning";
   return curForm;
@@ -317,7 +319,7 @@ function createFormation(label){
     const prev=entriesOf(d,fs[fs.length-1].id);
     for(const sid in prev){const e=prev[sid];if(CARRY_FORM.includes(e.s))entries[sid]={s:e.s,other:e.other||"",rmk:e.rmk||"",at:new Date().toISOString()};}
   }
-  curForm=fid;
+  curForm=fid;localForms.add(fid);
   queue({formations:{[fid]:{label,startedAt:new Date().toISOString(),entries}}},0);
   $("#newform").hidden=true;$("#nfName").value="";
   toast(label+" started");
